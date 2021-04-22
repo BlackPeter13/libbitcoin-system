@@ -11,16 +11,41 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(libbitcoin-system LANGUAGES C CXX)
 
+set( CMAKE_CXX_STANDARD 17 )
+set( CMAKE_CXX_STANDARD_REQUIRED ON )
+
+include(${PROJECT_BINARY_DIR}/conan_paths.cmake)
+
 enable_testing()
 
 list( APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/modules" )
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
+include(ProjectSecp256k1)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 if (MSVC)
-  set( CANONICAL_LIB_NAME libbitcoin-system )
+  set(CANONICAL_LIB_NAME libbitcoin-system )
+  set(MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  add_compile_options(/MP)
+  add_definitions( -DBOOST_ALL_NO_LIB )
+
+  add_compile_definitions(
+  BC_STATIC
+  WITH_ICU
+  WIN32_LEAN_AND_MEAN
+  NOMINMAX
+  _WIN32_WINNT=0x0600
+  _LIB
+  NDEBUG
+  UNICODE
+  _UNICODE
+  WIN32
+  _WIN32
+  WIN64
+  _WIN64)
+
 else ()
   set( CANONICAL_LIB_NAME bitcoin-system )
   find_package( PkgConfig REQUIRED )
@@ -34,11 +59,9 @@ else ()
   set( VERSION "${PACKAGE_VERSION}" )
 endif ()
 
-set( CMAKE_CXX_STANDARD 11 )
-set( CMAKE_CXX_STANDARD_REQUIRED ON )
-
 # Add compiler options
 #------------------------------------------------------------------------------
+if (NOT MSVC)
 # Warn on all stuff.
 add_compile_options( "-Wall" )
 
@@ -63,6 +86,8 @@ add_compile_options( "-Wno-comment" )
 # Allow use of C99 'long long' type.
 add_compile_options( "-Wno-long-long" )
 
+endif ()
+
 # Conflict in stdlib under clang.
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     add_compile_options( "-Wno-mismatched-tags" )
@@ -79,11 +104,11 @@ set( pkgconfigdir "${libdir}/pkgconfig" CACHE PATH "Path to pkgconfig directory.
 
 # Implement -Dwith-tests and declare with-tests.
 #------------------------------------------------------------------------------
-set( with-tests "yes" CACHE BOOL "Compile with unit tests." )
+set( with-tests "no" CACHE BOOL "Compile with unit tests." )
 
 # Implement -Dwith-examples and declare with-examples.
 #------------------------------------------------------------------------------
-set( with-examples "yes" CACHE BOOL "Compile with examples." )
+set( with-examples "no" CACHE BOOL "Compile with examples." )
 
 # Implement -Dwith-icu and define BOOST_HAS_ICU and output ${icu}.
 #------------------------------------------------------------------------------
@@ -108,12 +133,12 @@ endif()
 # Inherit -Denable-shared and define BOOST_ALL_DYN_LINK.
 #------------------------------------------------------------------------------
 if (BUILD_SHARED_LIBS)
-    add_definitions( -DBOOST_ALL_DYN_LINK )
+    add_definitions( -DBOOST_ALL_NO_LIB -DBOOST_ALL_DYN_LINK )
 endif()
 
 # Find boost
 #------------------------------------------------------------------------------
-find_package( Boost 1.72.0 REQUIRED COMPONENTS
+find_package( Boost 1.70.0 REQUIRED COMPONENTS
     atomic
     chrono
     date_time
@@ -160,7 +185,7 @@ if (NOT ANDROID)
     find_package( Threads REQUIRED )
 endif()
 
-if ( Threads_FOUND AND NOT ANDROID )
+if ( Threads_FOUND AND NOT ANDROID AND NOT MSVC)
     # TODO: find proper detection - documentation on FindThreads appears incorrect.
     set( pthread_CPPFLAGS "" )
     set( pthread_LIBRARIES "-lpthread" )
@@ -185,9 +210,6 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Linux"))
     find_package( Dl REQUIRED )
 endif()
 
-# Find secp256k1
-#------------------------------------------------------------------------------
-find_package( Secp256K1 0.1.0.19 REQUIRED )
 
 # Define project common includes directories
 #------------------------------------------------------------------------------
@@ -197,16 +219,14 @@ if (BUILD_SHARED_LIBS)
         ${pthread_INCLUDE_DIRS}
         ${rt_INCLUDE_DIRS}
         ${icu_i18n_INCLUDE_DIRS}
-        ${dl_INCLUDE_DIRS}
-        ${secp256k1_INCLUDE_DIRS} )
+        ${dl_INCLUDE_DIRS} )
 else()
     include_directories( SYSTEM
         ${Boost_INCLUDE_DIR}
         ${pthread_INCLUDE_DIRS}
         ${rt_INCLUDE_DIRS}
         ${icu_i18n_STATIC_INCLUDE_DIRS}
-        ${dl_INCLUDE_DIRS}
-        ${secp256k1_STATIC_INCLUDE_DIRS} )
+        ${dl_INCLUDE_DIRS})
 endif()
 
 # Define project common library directories
@@ -217,58 +237,32 @@ if (BUILD_SHARED_LIBS)
         ${pthread_LIBRARY_DIRS}
         ${rt_LIBRARY_DIRS}
         ${icu_i18n_LIBRARY_DIRS}
-        ${dl_LIBRARY_DIRS}
-        ${secp256k1_LIBRARY_DIRS} )
+        ${dl_LIBRARY_DIRS} )
 else()
     link_directories(
         ${Boost_LIBRARY_DIRS}
         ${pthread_LIBRARY_DIRS}
         ${rt_LIBRARY_DIRS}
         ${icu_i18n_STATIC_LIBRARY_DIRS}
-        ${dl_LIBRARY_DIRS}
-        ${secp256k1_STATIC_LIBRARY_DIRS} )
+        ${dl_LIBRARY_DIRS} )
 endif()
 
 # Define project common libraries/linker flags.
 #------------------------------------------------------------------------------
 if (BUILD_SHARED_LIBS)
     link_libraries(
-        "-fstack-protector"
-        "-fstack-protector-all"
-        ${Boost_CHRONO_LIBRARY}
-        ${Boost_DATE_TIME_LIBRARY}
-        ${Boost_FILESYSTEM_LIBRARY}
-        ${Boost_IOSTREAMS_LIBRARY}
-        ${Boost_LOCALE_LIBRARY}
-        ${Boost_LOG_LIBRARY}
-        ${Boost_PROGRAM_OPTIONS_LIBRARY}
-        ${Boost_REGEX_LIBRARY}
-        ${Boost_SYSTEM_LIBRARY}
-        ${Boost_THREAD_LIBRARY}
+        ${Boost_LIBRARIES}  
         ${pthread_LIBRARIES}
         ${rt_LIBRARIES}
         ${icu_i18n_LIBRARIES}
-        ${dl_LIBRARIES}
-        ${secp256k1_LIBRARIES} )
+        ${dl_LIBRARIES})
 else()
     link_libraries(
-        "-fstack-protector"
-        "-fstack-protector-all"
-        ${Boost_CHRONO_LIBRARY}
-        ${Boost_DATE_TIME_LIBRARY}
-        ${Boost_FILESYSTEM_LIBRARY}
-        ${Boost_IOSTREAMS_LIBRARY}
-        ${Boost_LOCALE_LIBRARY}
-        ${Boost_LOG_LIBRARY}
-        ${Boost_PROGRAM_OPTIONS_LIBRARY}
-        ${Boost_REGEX_LIBRARY}
-        ${Boost_SYSTEM_LIBRARY}
-        ${Boost_THREAD_LIBRARY}
+        ${Boost_LIBRARIES}  
         ${pthread_LIBRARIES}
         ${rt_LIBRARIES}
         ${icu_i18n_STATIC_LIBRARIES}
-        ${dl_LIBRARIES}
-        ${secp256k1_STATIC_LIBRARIES} )
+        ${dl_LIBRARIES} )
 endif()
 
 add_definitions(
@@ -276,235 +270,237 @@ add_definitions(
 
 # Define ${CANONICAL_LIB_NAME} project.
 #------------------------------------------------------------------------------
-add_library( ${CANONICAL_LIB_NAME}
-    "../../src/error.cpp"
-    "../../src/settings.cpp"
-    "../../src/chain/block.cpp"
-    "../../src/chain/block_filter.cpp"
-    "../../src/chain/chain_state.cpp"
-    "../../src/chain/compact.cpp"
-    "../../src/chain/header.cpp"
-    "../../src/chain/input.cpp"
-    "../../src/chain/output.cpp"
-    "../../src/chain/output_point.cpp"
-    "../../src/chain/payment_record.cpp"
-    "../../src/chain/point.cpp"
-    "../../src/chain/point_value.cpp"
-    "../../src/chain/points_value.cpp"
-    "../../src/chain/script.cpp"
-    "../../src/chain/stealth_record.cpp"
-    "../../src/chain/transaction.cpp"
-    "../../src/chain/witness.cpp"
-    "../../src/config/authority.cpp"
-    "../../src/config/base16.cpp"
-    "../../src/config/base2.cpp"
-    "../../src/config/base58.cpp"
-    "../../src/config/base64.cpp"
-    "../../src/config/block.cpp"
-    "../../src/config/checkpoint.cpp"
-    "../../src/config/compact_filter.cpp"
-    "../../src/config/directory.cpp"
-    "../../src/config/endpoint.cpp"
-    "../../src/config/hash160.cpp"
-    "../../src/config/hash256.cpp"
-    "../../src/config/header.cpp"
-    "../../src/config/input.cpp"
-    "../../src/config/output.cpp"
-    "../../src/config/parameter.cpp"
-    "../../src/config/parser.cpp"
-    "../../src/config/point.cpp"
-    "../../src/config/printer.cpp"
-    "../../src/config/script.cpp"
-    "../../src/config/sodium.cpp"
-    "../../src/config/transaction.cpp"
-    "../../src/formats/base_10.cpp"
-    "../../src/formats/base_16.cpp"
-    "../../src/formats/base_32.cpp"
-    "../../src/formats/base_58.cpp"
-    "../../src/formats/base_64.cpp"
-    "../../src/formats/base_85.cpp"
-    "../../src/log/file_collector.cpp"
-    "../../src/log/file_collector_repository.cpp"
-    "../../src/log/file_counter_formatter.cpp"
-    "../../src/log/sink.cpp"
-    "../../src/log/statsd_sink.cpp"
-    "../../src/log/udp_client_sink.cpp"
-    "../../src/machine/interpreter.cpp"
-    "../../src/machine/number.cpp"
-    "../../src/machine/opcode.cpp"
-    "../../src/machine/operation.cpp"
-    "../../src/machine/program.cpp"
-    "../../src/math/checksum.cpp"
-    "../../src/math/crypto.cpp"
-    "../../src/math/ec_point.cpp"
-    "../../src/math/ec_scalar.cpp"
-    "../../src/math/elliptic_curve.cpp"
-    "../../src/math/golomb_coded_sets.cpp"
-    "../../src/math/hash.cpp"
-    "../../src/math/ring_signature.cpp"
-    "../../src/math/secp256k1_initializer.cpp"
-    "../../src/math/secp256k1_initializer.hpp"
-    "../../src/math/siphash.cpp"
-    "../../src/math/stealth.cpp"
-    "../../src/math/external/aes256.c"
-    "../../src/math/external/aes256.h"
-    "../../src/math/external/crypto_scrypt.c"
-    "../../src/math/external/crypto_scrypt.h"
-    "../../src/math/external/hmac_sha256.c"
-    "../../src/math/external/hmac_sha256.h"
-    "../../src/math/external/hmac_sha512.c"
-    "../../src/math/external/hmac_sha512.h"
-    "../../src/math/external/lax_der_parsing.c"
-    "../../src/math/external/lax_der_parsing.h"
-    "../../src/math/external/pbkdf2_sha256.c"
-    "../../src/math/external/pbkdf2_sha256.h"
-    "../../src/math/external/pkcs5_pbkdf2.c"
-    "../../src/math/external/pkcs5_pbkdf2.h"
-    "../../src/math/external/ripemd160.c"
-    "../../src/math/external/ripemd160.h"
-    "../../src/math/external/sha1.c"
-    "../../src/math/external/sha1.h"
-    "../../src/math/external/sha256.c"
-    "../../src/math/external/sha256.h"
-    "../../src/math/external/sha512.c"
-    "../../src/math/external/sha512.h"
-    "../../src/math/external/zeroize.c"
-    "../../src/math/external/zeroize.h"
-    "../../src/message/address.cpp"
-    "../../src/message/alert.cpp"
-    "../../src/message/alert_payload.cpp"
-    "../../src/message/block.cpp"
-    "../../src/message/block_transactions.cpp"
-    "../../src/message/compact_block.cpp"
-    "../../src/message/compact_filter.cpp"
-    "../../src/message/compact_filter_checkpoint.cpp"
-    "../../src/message/compact_filter_headers.cpp"
-    "../../src/message/fee_filter.cpp"
-    "../../src/message/filter_add.cpp"
-    "../../src/message/filter_clear.cpp"
-    "../../src/message/filter_load.cpp"
-    "../../src/message/get_address.cpp"
-    "../../src/message/get_block_transactions.cpp"
-    "../../src/message/get_blocks.cpp"
-    "../../src/message/get_compact_filter_checkpoint.cpp"
-    "../../src/message/get_compact_filter_headers.cpp"
-    "../../src/message/get_compact_filters.cpp"
-    "../../src/message/get_data.cpp"
-    "../../src/message/get_headers.cpp"
-    "../../src/message/header.cpp"
-    "../../src/message/headers.cpp"
-    "../../src/message/heading.cpp"
-    "../../src/message/inventory.cpp"
-    "../../src/message/inventory_vector.cpp"
-    "../../src/message/memory_pool.cpp"
-    "../../src/message/merkle_block.cpp"
-    "../../src/message/messages.cpp"
-    "../../src/message/network_address.cpp"
-    "../../src/message/not_found.cpp"
-    "../../src/message/ping.cpp"
-    "../../src/message/pong.cpp"
-    "../../src/message/prefilled_transaction.cpp"
-    "../../src/message/reject.cpp"
-    "../../src/message/send_compact.cpp"
-    "../../src/message/send_headers.cpp"
-    "../../src/message/transaction.cpp"
-    "../../src/message/verack.cpp"
-    "../../src/message/version.cpp"
-    "../../src/unicode/console_streambuf.cpp"
-    "../../src/unicode/ifstream.cpp"
-    "../../src/unicode/ofstream.cpp"
-    "../../src/unicode/unicode.cpp"
-    "../../src/unicode/unicode_istream.cpp"
-    "../../src/unicode/unicode_ostream.cpp"
-    "../../src/unicode/unicode_streambuf.cpp"
-    "../../src/utility/binary.cpp"
-    "../../src/utility/conditional_lock.cpp"
-    "../../src/utility/deadline.cpp"
-    "../../src/utility/dispatcher.cpp"
-    "../../src/utility/flush_lock.cpp"
-    "../../src/utility/interprocess_lock.cpp"
-    "../../src/utility/istream_bit_reader.cpp"
-    "../../src/utility/istream_reader.cpp"
-    "../../src/utility/monitor.cpp"
-    "../../src/utility/neutrino_filter.cpp"
-    "../../src/utility/ostream_bit_writer.cpp"
-    "../../src/utility/ostream_writer.cpp"
-    "../../src/utility/prioritized_mutex.cpp"
-    "../../src/utility/property_tree.cpp"
-    "../../src/utility/pseudo_random.cpp"
-    "../../src/utility/scope_lock.cpp"
-    "../../src/utility/sequencer.cpp"
-    "../../src/utility/sequential_lock.cpp"
-    "../../src/utility/socket.cpp"
-    "../../src/utility/string.cpp"
-    "../../src/utility/thread.cpp"
-    "../../src/utility/threadpool.cpp"
-    "../../src/utility/tiff.cpp"
-    "../../src/utility/work.cpp"
-    "../../src/wallet/bitcoin_uri.cpp"
-    "../../src/wallet/dictionary_en.cpp"
-    "../../src/wallet/dictionary_es.cpp"
-    "../../src/wallet/dictionary_fr.cpp"
-    "../../src/wallet/dictionary_it.cpp"
-    "../../src/wallet/dictionary_ja.cpp"
-    "../../src/wallet/dictionary_ko.cpp"
-    "../../src/wallet/dictionary_zh_Hans.cpp"
-    "../../src/wallet/dictionary_zh_Hant.cpp"
-    "../../src/wallet/ec_private.cpp"
-    "../../src/wallet/ec_public.cpp"
-    "../../src/wallet/ek_private.cpp"
-    "../../src/wallet/ek_public.cpp"
-    "../../src/wallet/ek_token.cpp"
-    "../../src/wallet/electrum.cpp"
-    "../../src/wallet/electrum_dictionary.cpp"
-    "../../src/wallet/electrum_dictionary_en.cpp"
-    "../../src/wallet/electrum_dictionary_es.cpp"
-    "../../src/wallet/electrum_dictionary_ja.cpp"
-    "../../src/wallet/electrum_dictionary_pt.cpp"
-    "../../src/wallet/electrum_dictionary_zh_Hans.cpp"
-    "../../src/wallet/encrypted_keys.cpp"
-    "../../src/wallet/hd_private.cpp"
-    "../../src/wallet/hd_public.cpp"
-    "../../src/wallet/message.cpp"
-    "../../src/wallet/mini_keys.cpp"
-    "../../src/wallet/mnemonic.cpp"
-    "../../src/wallet/payment_address.cpp"
-    "../../src/wallet/qr_code.cpp"
-    "../../src/wallet/select_outputs.cpp"
-    "../../src/wallet/stealth_address.cpp"
-    "../../src/wallet/stealth_receiver.cpp"
-    "../../src/wallet/stealth_sender.cpp"
-    "../../src/wallet/uri.cpp"
-    "../../src/wallet/witness_address.cpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_key.hpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_key.ipp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_prefix.hpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_prefix.ipp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_private.cpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_private.hpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_public.cpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_public.hpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_token.cpp"
-    "../../src/wallet/parse_encrypted_keys/parse_encrypted_token.hpp"
-    "../../src/wallet/qrencode/bitstream.c"
-    "../../src/wallet/qrencode/bitstream.h"
-    "../../src/wallet/qrencode/mask.c"
-    "../../src/wallet/qrencode/mask.h"
-    "../../src/wallet/qrencode/mmask.c"
-    "../../src/wallet/qrencode/mmask.h"
-    "../../src/wallet/qrencode/mqrspec.c"
-    "../../src/wallet/qrencode/mqrspec.h"
-    "../../src/wallet/qrencode/qrencode.c"
-    "../../src/wallet/qrencode/qrencode.h"
-    "../../src/wallet/qrencode/qrencode_inner.h"
-    "../../src/wallet/qrencode/qrinput.c"
-    "../../src/wallet/qrencode/qrinput.h"
-    "../../src/wallet/qrencode/qrspec.c"
-    "../../src/wallet/qrencode/qrspec.h"
-    "../../src/wallet/qrencode/rsecc.c"
-    "../../src/wallet/qrencode/rsecc.h"
-    "../../src/wallet/qrencode/split.c"
-    "../../src/wallet/qrencode/split.h" )
+set(SOURCES 
+"../../src/error.cpp"
+"../../src/settings.cpp"
+"../../src/chain/block.cpp"
+"../../src/chain/block_filter.cpp"
+"../../src/chain/chain_state.cpp"
+"../../src/chain/compact.cpp"
+"../../src/chain/header.cpp"
+"../../src/chain/input.cpp"
+"../../src/chain/output.cpp"
+"../../src/chain/output_point.cpp"
+"../../src/chain/payment_record.cpp"
+"../../src/chain/point.cpp"
+"../../src/chain/point_value.cpp"
+"../../src/chain/points_value.cpp"
+"../../src/chain/script.cpp"
+"../../src/chain/stealth_record.cpp"
+"../../src/chain/transaction.cpp"
+"../../src/chain/witness.cpp"
+"../../src/config/authority.cpp"
+"../../src/config/base16.cpp"
+"../../src/config/base2.cpp"
+"../../src/config/base58.cpp"
+"../../src/config/base64.cpp"
+"../../src/config/block.cpp"
+"../../src/config/checkpoint.cpp"
+"../../src/config/compact_filter.cpp"
+"../../src/config/directory.cpp"
+"../../src/config/endpoint.cpp"
+"../../src/config/hash160.cpp"
+"../../src/config/hash256.cpp"
+"../../src/config/header.cpp"
+"../../src/config/input.cpp"
+"../../src/config/output.cpp"
+"../../src/config/parameter.cpp"
+"../../src/config/parser.cpp"
+"../../src/config/point.cpp"
+"../../src/config/printer.cpp"
+"../../src/config/script.cpp"
+"../../src/config/sodium.cpp"
+"../../src/config/transaction.cpp"
+"../../src/formats/base_10.cpp"
+"../../src/formats/base_16.cpp"
+"../../src/formats/base_32.cpp"
+"../../src/formats/base_58.cpp"
+"../../src/formats/base_64.cpp"
+"../../src/formats/base_85.cpp"
+"../../src/log/file_collector.cpp"
+"../../src/log/file_collector_repository.cpp"
+"../../src/log/file_counter_formatter.cpp"
+"../../src/log/sink.cpp"
+"../../src/log/statsd_sink.cpp"
+"../../src/log/udp_client_sink.cpp"
+"../../src/machine/interpreter.cpp"
+"../../src/machine/number.cpp"
+"../../src/machine/opcode.cpp"
+"../../src/machine/operation.cpp"
+"../../src/machine/program.cpp"
+"../../src/math/checksum.cpp"
+"../../src/math/crypto.cpp"
+"../../src/math/ec_point.cpp"
+"../../src/math/ec_scalar.cpp"
+"../../src/math/elliptic_curve.cpp"
+"../../src/math/golomb_coded_sets.cpp"
+"../../src/math/hash.cpp"
+"../../src/math/ring_signature.cpp"
+"../../src/math/secp256k1_initializer.cpp"
+"../../src/math/secp256k1_initializer.hpp"
+"../../src/math/siphash.cpp"
+"../../src/math/stealth.cpp"
+"../../src/math/external/aes256.c"
+"../../src/math/external/aes256.h"
+"../../src/math/external/crypto_scrypt.c"
+"../../src/math/external/crypto_scrypt.h"
+"../../src/math/external/hmac_sha256.c"
+"../../src/math/external/hmac_sha256.h"
+"../../src/math/external/hmac_sha512.c"
+"../../src/math/external/hmac_sha512.h"
+"../../src/math/external/lax_der_parsing.c"
+"../../src/math/external/lax_der_parsing.h"
+"../../src/math/external/pbkdf2_sha256.c"
+"../../src/math/external/pbkdf2_sha256.h"
+"../../src/math/external/pkcs5_pbkdf2.c"
+"../../src/math/external/pkcs5_pbkdf2.h"
+"../../src/math/external/ripemd160.c"
+"../../src/math/external/ripemd160.h"
+"../../src/math/external/sha1.c"
+"../../src/math/external/sha1.h"
+"../../src/math/external/sha256.c"
+"../../src/math/external/sha256.h"
+"../../src/math/external/sha512.c"
+"../../src/math/external/sha512.h"
+"../../src/math/external/zeroize.c"
+"../../src/math/external/zeroize.h"
+"../../src/message/address.cpp"
+"../../src/message/alert.cpp"
+"../../src/message/alert_payload.cpp"
+"../../src/message/block.cpp"
+"../../src/message/block_transactions.cpp"
+"../../src/message/compact_block.cpp"
+"../../src/message/compact_filter.cpp"
+"../../src/message/compact_filter_checkpoint.cpp"
+"../../src/message/compact_filter_headers.cpp"
+"../../src/message/fee_filter.cpp"
+"../../src/message/filter_add.cpp"
+"../../src/message/filter_clear.cpp"
+"../../src/message/filter_load.cpp"
+"../../src/message/get_address.cpp"
+"../../src/message/get_block_transactions.cpp"
+"../../src/message/get_blocks.cpp"
+"../../src/message/get_compact_filter_checkpoint.cpp"
+"../../src/message/get_compact_filter_headers.cpp"
+"../../src/message/get_compact_filters.cpp"
+"../../src/message/get_data.cpp"
+"../../src/message/get_headers.cpp"
+"../../src/message/header.cpp"
+"../../src/message/headers.cpp"
+"../../src/message/heading.cpp"
+"../../src/message/inventory.cpp"
+"../../src/message/inventory_vector.cpp"
+"../../src/message/memory_pool.cpp"
+"../../src/message/merkle_block.cpp"
+"../../src/message/messages.cpp"
+"../../src/message/network_address.cpp"
+"../../src/message/not_found.cpp"
+"../../src/message/ping.cpp"
+"../../src/message/pong.cpp"
+"../../src/message/prefilled_transaction.cpp"
+"../../src/message/reject.cpp"
+"../../src/message/send_compact.cpp"
+"../../src/message/send_headers.cpp"
+"../../src/message/transaction.cpp"
+"../../src/message/verack.cpp"
+"../../src/message/version.cpp"
+"../../src/unicode/console_streambuf.cpp"
+"../../src/unicode/ifstream.cpp"
+"../../src/unicode/ofstream.cpp"
+"../../src/unicode/unicode.cpp"
+"../../src/unicode/unicode_istream.cpp"
+"../../src/unicode/unicode_ostream.cpp"
+"../../src/unicode/unicode_streambuf.cpp"
+"../../src/utility/binary.cpp"
+"../../src/utility/conditional_lock.cpp"
+"../../src/utility/deadline.cpp"
+"../../src/utility/dispatcher.cpp"
+"../../src/utility/flush_lock.cpp"
+"../../src/utility/interprocess_lock.cpp"
+"../../src/utility/istream_bit_reader.cpp"
+"../../src/utility/istream_reader.cpp"
+"../../src/utility/monitor.cpp"
+"../../src/utility/neutrino_filter.cpp"
+"../../src/utility/ostream_bit_writer.cpp"
+"../../src/utility/ostream_writer.cpp"
+"../../src/utility/prioritized_mutex.cpp"
+"../../src/utility/property_tree.cpp"
+"../../src/utility/pseudo_random.cpp"
+"../../src/utility/scope_lock.cpp"
+"../../src/utility/sequencer.cpp"
+"../../src/utility/sequential_lock.cpp"
+"../../src/utility/socket.cpp"
+"../../src/utility/string.cpp"
+"../../src/utility/thread.cpp"
+"../../src/utility/threadpool.cpp"
+"../../src/utility/tiff.cpp"
+"../../src/utility/work.cpp"
+"../../src/wallet/bitcoin_uri.cpp"
+"../../src/wallet/dictionary_en.cpp"
+"../../src/wallet/dictionary_es.cpp"
+"../../src/wallet/dictionary_fr.cpp"
+"../../src/wallet/dictionary_it.cpp"
+"../../src/wallet/dictionary_ja.cpp"
+"../../src/wallet/dictionary_ko.cpp"
+"../../src/wallet/dictionary_zh_Hans.cpp"
+"../../src/wallet/dictionary_zh_Hant.cpp"
+"../../src/wallet/ec_private.cpp"
+"../../src/wallet/ec_public.cpp"
+"../../src/wallet/ek_private.cpp"
+"../../src/wallet/ek_public.cpp"
+"../../src/wallet/ek_token.cpp"
+"../../src/wallet/electrum.cpp"
+"../../src/wallet/electrum_dictionary.cpp"
+"../../src/wallet/electrum_dictionary_en.cpp"
+"../../src/wallet/electrum_dictionary_es.cpp"
+"../../src/wallet/electrum_dictionary_ja.cpp"
+"../../src/wallet/electrum_dictionary_pt.cpp"
+"../../src/wallet/electrum_dictionary_zh_Hans.cpp"
+"../../src/wallet/encrypted_keys.cpp"
+"../../src/wallet/hd_private.cpp"
+"../../src/wallet/hd_public.cpp"
+"../../src/wallet/message.cpp"
+"../../src/wallet/mini_keys.cpp"
+"../../src/wallet/mnemonic.cpp"
+"../../src/wallet/payment_address.cpp"
+"../../src/wallet/qr_code.cpp"
+"../../src/wallet/select_outputs.cpp"
+"../../src/wallet/stealth_address.cpp"
+"../../src/wallet/stealth_receiver.cpp"
+"../../src/wallet/stealth_sender.cpp"
+"../../src/wallet/uri.cpp"
+"../../src/wallet/witness_address.cpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_key.hpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_key.ipp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_prefix.hpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_prefix.ipp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_private.cpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_private.hpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_public.cpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_public.hpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_token.cpp"
+"../../src/wallet/parse_encrypted_keys/parse_encrypted_token.hpp"
+"../../src/wallet/qrencode/bitstream.c"
+"../../src/wallet/qrencode/bitstream.h"
+"../../src/wallet/qrencode/mask.c"
+"../../src/wallet/qrencode/mask.h"
+"../../src/wallet/qrencode/mmask.c"
+"../../src/wallet/qrencode/mmask.h"
+"../../src/wallet/qrencode/mqrspec.c"
+"../../src/wallet/qrencode/mqrspec.h"
+"../../src/wallet/qrencode/qrencode.c"
+"../../src/wallet/qrencode/qrencode.h"
+"../../src/wallet/qrencode/qrencode_inner.h"
+"../../src/wallet/qrencode/qrinput.c"
+"../../src/wallet/qrencode/qrinput.h"
+"../../src/wallet/qrencode/qrspec.c"
+"../../src/wallet/qrencode/qrspec.h"
+"../../src/wallet/qrencode/rsecc.c"
+"../../src/wallet/qrencode/rsecc.h"
+"../../src/wallet/qrencode/split.c"
+"../../src/wallet/qrencode/split.h")
+
+add_library(${CANONICAL_LIB_NAME} STATIC ${SOURCES})
 
 # ${CANONICAL_LIB_NAME} project specific include directories.
 #------------------------------------------------------------------------------
@@ -515,8 +511,8 @@ if (BUILD_SHARED_LIBS)
         ${pthread_INCLUDE_DIRS}
         ${rt_INCLUDE_DIRS}
         ${icu_i18n_INCLUDE_DIRS}
-        ${dl_INCLUDE_DIRS}
-        ${secp256k1_INCLUDE_DIRS} )
+        ${dl_INCLUDE_DIRS} 
+        ${CMAKE_BINARY_DIR}/deps/include)
 else()
     target_include_directories( ${CANONICAL_LIB_NAME} PRIVATE
         "../../include"
@@ -524,8 +520,8 @@ else()
         ${pthread_INCLUDE_DIRS}
         ${rt_INCLUDE_DIRS}
         ${icu_i18n_STATIC_INCLUDE_DIRS}
-        ${dl_INCLUDE_DIRS}
-        ${secp256k1_STATIC_INCLUDE_DIRS} )
+        ${dl_INCLUDE_DIRS} 
+        ${CMAKE_BINARY_DIR}/deps/include)
 endif()
 
 target_include_directories( ${CANONICAL_LIB_NAME} PUBLIC
@@ -535,38 +531,20 @@ target_include_directories( ${CANONICAL_LIB_NAME} PUBLIC
 #------------------------------------------------------------------------------
 if (BUILD_SHARED_LIBS)
     target_link_libraries( ${CANONICAL_LIB_NAME}
-        ${Boost_CHRONO_LIBRARY}
-        ${Boost_DATE_TIME_LIBRARY}
-        ${Boost_FILESYSTEM_LIBRARY}
-        ${Boost_IOSTREAMS_LIBRARY}
-        ${Boost_LOCALE_LIBRARY}
-        ${Boost_LOG_LIBRARY}
-        ${Boost_PROGRAM_OPTIONS_LIBRARY}
-        ${Boost_REGEX_LIBRARY}
-        ${Boost_SYSTEM_LIBRARY}
-        ${Boost_THREAD_LIBRARY}
+    ${Boost_LIBRARIES}  
         ${pthread_LIBRARIES}
         ${rt_LIBRARIES}
         ${icu_i18n_LIBRARIES}
         ${dl_LIBRARIES}
-        ${secp256k1_LIBRARIES} )
+        Secp256k1)
 else()
     target_link_libraries( ${CANONICAL_LIB_NAME}
-        ${Boost_CHRONO_LIBRARY}
-        ${Boost_DATE_TIME_LIBRARY}
-        ${Boost_FILESYSTEM_LIBRARY}
-        ${Boost_IOSTREAMS_LIBRARY}
-        ${Boost_LOCALE_LIBRARY}
-        ${Boost_LOG_LIBRARY}
-        ${Boost_PROGRAM_OPTIONS_LIBRARY}
-        ${Boost_REGEX_LIBRARY}
-        ${Boost_SYSTEM_LIBRARY}
-        ${Boost_THREAD_LIBRARY}
+        ${Boost_LIBRARIES}  
         ${pthread_LIBRARIES}
         ${rt_LIBRARIES}
         ${icu_i18n_STATIC_LIBRARIES}
-        ${dl_LIBRARIES}
-        ${secp256k1_STATIC_LIBRARIES} )
+        ${dl_LIBRARIES} 
+        Secp256k1)
 endif()
 
 # Define libbitcoin-system-examples project.

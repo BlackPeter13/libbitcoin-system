@@ -1,5 +1,7 @@
 .deps
 .libs
+.build/
+.vscode/
 *.la
 *.lo
 *.o

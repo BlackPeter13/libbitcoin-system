@@ -1,0 +1,10 @@
+[requires]
+boost/1.70.0
+
+[options]
+boost:shared=False
+
+[generators]
+cmake
+cmake_find_package
+cmake_paths
