@@ -14,7 +14,9 @@ project(libbitcoin-system LANGUAGES C CXX)
 set( CMAKE_CXX_STANDARD 17 )
 set( CMAKE_CXX_STANDARD_REQUIRED ON )
 
-include(${PROJECT_BINARY_DIR}/conan_paths.cmake)
+# Find conan paths cmake
+find_file(CONAN_PATHS_FILE "conan_paths.cmake" ${PROJECT_BINARY_DIR})
+include(${CONAN_PATHS_FILE})
 
 enable_testing()
 
