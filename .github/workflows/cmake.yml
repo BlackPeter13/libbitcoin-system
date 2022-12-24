@@ -23,4 +23,4 @@ jobs:
           sudo apt-get install build-essential autoconf automake libtool pkg-config git
           wget https://raw.githubusercontent.com/libbitcoin/libbitcoin/version3/install.sh
           chmod +x install.sh
-          ./install.sh --prefix=/home/me/myprefix --build-boost --disable-shared
+          ./install.sh --prefix=/home/user --build-boost --disable-shared
