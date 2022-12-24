@@ -36,7 +36,7 @@ $ sudo ldconfig
 ```
 A minimal libbitcoin build requires boost and libsecp256k1. The [libbitcoin/secp256k1](https://github.com/libbitcoin/secp256k1) repository is forked from [bitcoin-core/secp256k1](https://github.com/bitcoin-core/secp256k1) in order to control for changes and to incorporate the necessary Visual Studio build. The original repository can be used directly but recent changes to the public interface may cause build breaks. The `--enable-module-recovery` switch is required.
 
-### Debian/Ubuntu
+### Debian/Ubuntu(18.04)
 
 Libbitcoin requires a C++11 compiler, currently minimum [GCC 4.8.0](https://gcc.gnu.org/projects/cxx0x.html) or Clang based on [LLVM 3.5](http://llvm.org/releases/3.5.0/docs/ReleaseNotes.html).
 
@@ -51,7 +51,7 @@ $ chmod +x install.sh
 ```
 Finally install libbitcoin with recommended build options:
 ```sh
-$ ./install.sh --prefix=/home/me/myprefix --build-boost --disable-shared
+$ sudo ./install.sh --prefix=/home/me/myprefix --build-boost --disable-shared
 ```
 
 Libbitcoin is now installed in `/home/me/myprefix/`.
